@@ -66,7 +66,10 @@
       <div class="flex items-center gap-3 mb-4">
         <div class="w-8 h-8 rounded-lg bg-brand flex items-center justify-center font-extrabold">M</div>
         <h2 class="text-2xl font-extrabold">PDF Merger</h2>
-        <div class="ml-auto text-sm text-white/60" id="fileCount">No files</div>
+        <div class="ml-auto flex items-center gap-4 text-sm text-white/60">
+          <span id="fileCount">No files</span>
+          <span id="pageCount">Pages: 0</span>
+        </div>
       </div>
 
       <div id="dropzone" class="dropzone-dashed rounded-2xl border-2 border-dashed border-white/20 p-6 text-center cursor-pointer hover:bg-white/5 transition">
@@ -95,6 +98,11 @@
             <input id="serverMode" type="checkbox" class="accent-brand" /> Merge on server (beta)
           </label>
         </div>
+        <label class="flex flex-col gap-1">
+          <span class="text-sm text-white/70">Limit total pages (optional)</span>
+          <input id="pageLimit" type="number" min="1" placeholder="e.g., 50"
+                 class="px-3 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand" />
+        </label>
       </div>
 
       <div class="mt-6 flex flex-wrap items-center gap-3">
@@ -171,6 +179,7 @@
     const dropzone = $('#dropzone');
     const fileList = $('#fileList');
     const fileCount = $('#fileCount');
+    const pageCount = $('#pageCount');
     const mergeBtn = $('#mergeBtn');
     const clearBtn = $('#clearBtn');
     const statusEl = $('#status');
@@ -183,6 +192,7 @@
     const outputName = $('#outputName');
     const compressToggle = $('#compressToggle');
     const serverMode = $('#serverMode');
+    const pageLimit = $('#pageLimit');
 
     $('#year').textContent = new Date().getFullYear();
     $('#ctaScroll').addEventListener('click', () => dropzone.scrollIntoView({behavior:'smooth', block:'center'}));
@@ -218,6 +228,7 @@
       if (state.items.length === 0) {
         fileList.innerHTML = '';
         fileCount.textContent = 'No files';
+        if (pageCount) pageCount.textContent = 'Pages: 0';
         mergeBtn.disabled = true;
         return;
       }
@@ -225,6 +236,10 @@
       fileCount.textContent = state.items.length + ' file' + (state.items.length>1?'s':'');
       fileList.innerHTML = state.items.map((item, idx) => rowTemplate(item, idx)).join('');
       attachRowHandlers();
+
+      // Update total pages across all files
+      const totalPages = state.items.reduce((sum, i) => sum + (i.pages || 0), 0);
+      if (pageCount) pageCount.textContent = 'Pages: ' + totalPages;
     }
 
     function rowTemplate(item, idx) {
@@ -302,35 +317,61 @@
     async function mergeClient() {
       const { PDFDocument } = PDFLib;
       const out = await PDFDocument.create();
-      let copied = 0; const total = state.items.length;
-      for (let i = 0; i < state.items.length; i++) {
+
+      // Read limit (Infinity if empty/invalid)
+      let limit = parseInt(pageLimit?.value, 10);
+      if (!Number.isFinite(limit) || limit <= 0) limit = Infinity;
+      let remaining = limit;
+      let mergedCount = 0;
+
+      for (let i = 0; i < state.items.length && remaining > 0; i++) {
         const item = state.items[i];
-        progress(i/total, `Reading: ${item.name}`);
+        progress(i / state.items.length, `Reading: ${item.name}`);
         const bytes = item.bytes || await item.file.arrayBuffer();
         const src = await PDFDocument.load(bytes);
-        const pgs = await out.copyPages(src, src.getPageIndices());
-        pgs.forEach(p => out.addPage(p));
-        copied++;
-        progress(copied/total, `Merged ${copied}/${total}`);
+
+        const indices = src.getPageIndices();
+        const slice = indices.slice(0, Math.min(indices.length, remaining));
+        const pages = await out.copyPages(src, slice);
+        pages.forEach(p => out.addPage(p));
+        mergedCount += pages.length;
+        remaining -= pages.length;
+        progress((i + 1) / state.items.length, `Merged ${mergedCount} page(s)`);
       }
-      if (compressToggle.checked) {
+
+      if (compressToggle && compressToggle.checked) {
         try { out.setTitle('Merged with MergeFlow'); out.setProducer('MergeFlow'); } catch {}
       }
       progress(0.98, 'Finalizing…');
       const pdfBytes = await out.save();
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
       showResult(blob);
+      statusEl.textContent = `Done — merged ${mergedCount} page(s)`;
     }
 
     async function mergeServer() {
       const fd = new FormData();
       state.items.forEach(item => fd.append('files', item.file, item.name));
+
+      const limitVal = parseInt(pageLimit?.value, 10);
+      if (Number.isFinite(limitVal) && limitVal > 0) fd.append('limit', String(limitVal));
+
       progress(0.2, 'Uploading…');
       const res = await fetch(BACKEND_URL, { method: 'POST', body: fd });
       if (!res.ok) throw new Error('Server merge failed: ' + res.status);
+
+      // Read the exact merged count from header if available
+      const mergedHdr = res.headers.get('X-Merged-Pages');
       progress(0.85, 'Preparing download…');
       const blob = await res.blob();
       showResult(blob);
+
+      if (mergedHdr) statusEl.textContent = `Done — merged ${mergedHdr} page(s)`;
+      else {
+        const totalKnown = state.items.reduce((s, i) => s + (i.pages || 0), 0);
+        const expected = Number.isFinite(limitVal) && limitVal > 0 ? Math.min(totalKnown, limitVal) : totalKnown;
+        statusEl.textContent = `Done — merged up to ${expected} page(s)`;
+      }
     }
 
     function showResult(blob) {
@@ -339,7 +380,7 @@
       downloadLink.download = (outputName.value || 'merged') + (outputName.value.endsWith('.pdf') ? '' : '.pdf');
       finalSize.textContent = `(${(blob.size/1024/1024).toFixed(2)} MB)`;
       result.classList.remove('hidden');
-      statusEl.textContent = 'Done';
+      statusEl.textContent = statusEl.textContent || 'Done';
       progress(1, 'Ready to download');
     }
 

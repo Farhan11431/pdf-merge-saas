@@ -1,15 +1,36 @@
-# MergeFlow Starter — Full UI (Vercel-friendly)
+# MergeFlow — Full Version (PDF Merger mini‑SaaS)
 
-This contains the **full index.html UI** + a Vercel serverless backend.
-Deploy both together on Vercel for the easiest setup.
+This is the complete version with:
+- Beautiful UI (drag & drop, reorder, progress)
+- Live pages counter
+- Optional “Limit total pages”
+- Client‑side merge (no server needed)
+- Server merge via Vercel function (enforces page limit + returns X-Merged-Pages)
 
-## Deploy (all-in-one on Vercel)
-1. Create a GitHub repo and upload **all files** from this folder.
-2. On vercel.com → Add New → Project → Import Git Repository → Deploy.
+## Quick deploy — All-in-one on Vercel (recommended)
+1) Create a new GitHub repo and upload **all files** from this folder.
+2) Go to https://vercel.com → **Add New → Project → Import Git Repository** → Deploy
    - Framework Preset: **Other**
-   - Build Command: *(leave empty)*
-   - Output Directory: *(leave empty)*
-3. Open your site. Toggle **“Merge on server (beta)”** if you want the backend to merge files.
-   (Works by default via `/api/merge`.)
+   - Build Command: (leave empty)
+   - Output Directory: (leave empty)
+3) Open `https://YOUR-PROJECT.vercel.app`.
+   - Client merge works instantly.
+   - Toggle **“Merge on server (beta)”** to use the backend at `/api/merge`.
 
-If you instead host the frontend on GitHub Pages, set BACKEND_URL in index.html to your full Vercel URL.
+## Alternative — Frontend on GitHub Pages, backend on Vercel
+1) Deploy this repo (or a copy with only frontend) to GitHub Pages (Settings → Pages → Deploy from branch → root).
+2) Deploy the backend (`/api/merge.js` + `package.json`) to Vercel.
+3) In `index.html`, set:
+   const BACKEND_URL = "https://YOUR-PROJECT.vercel.app/api/merge";
+   (instead of `/api/merge`).
+4) Toggle **server mode** when you want the backend to merge.
+
+## Sanity checks
+- Visit `/api/merge` in your browser: you should see **Method Not Allowed** (405). That means the function exists.
+- If you get 404 at root on Vercel, ensure files are at the repo root (not nested).
+
+## Troubleshooting
+- **White page**: you likely deployed the wrong `index.html`. Use the one in this zip.
+- **CORS**: the backend allows `*` by default. Lock to your domain in `api/merge.js` when you go live.
+- **Large files timeout**: serverless has limits. Consider a non‑serverless host later for huge PDFs.
+- **Nothing happens**: open DevTools → Console for errors, and confirm `BACKEND_URL` if using GitHub Pages.
