@@ -1,0 +1,10 @@
+{
+  "name": "mergeflow-backend",
+  "private": true,
+  "version": "1.0.0",
+  "license": "MIT",
+  "dependencies": {
+    "formidable": "^3.5.1",
+    "pdf-lib": "^1.17.1"
+  }
+}
