@@ -1,10 +1,35 @@
 {
   "name": "mergeflow-backend",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "description": "Serverless/Node backend for MergeFlow Pro: PDF merge/split with per-file options.",
   "license": "MIT",
+  "type": "module",
+  "engines": { "node": ">=18.17" },
+  "scripts": {
+    "dev": "node --watch api/dev-server.mjs",
+    "start": "NODE_ENV=production node api/dev-server.mjs",
+    "lint": "eslint .",
+    "format": "prettier -w .",
+    "test": "vitest run",
+    "check": "node -e \"require('fs').accessSync('api/merge.mjs')\" || (echo 'Missing api/merge.mjs' && exit 1)"
+  },
   "dependencies": {
+    "archiver": "^5.3.2",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
     "formidable": "^3.5.1",
-    "pdf-lib": "^1.17.1"
+    "pdf-lib": "^1.17.1",
+    "pino": "^9.0.0",
+    "zod": "^3.23.8"
+  },
+  "optionalDependencies": {
+    "sharp": "^0.33.4"
+  },
+  "devDependencies": {
+    "eslint": "^9.8.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.3",
+    "vitest": "^2.0.5"
   }
 }
